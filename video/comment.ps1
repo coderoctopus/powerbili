@@ -39,7 +39,7 @@ param (
 	[ValidateRange(1,49)][int]$CommentsPerPage=49,
 	[ValidateRange(1,20)][int]$RepliesPerPage=20,
 	[Parameter(Mandatory,Position=0)][ValidateRange("Positive")][int]$Oid,
-	[String]$Path=".",
+	[ValidateScript({Test-Path $_}, ErrorMessage="The specified directory does not exist.")][String]$Path=".",
 	[ValidateRange("Positive")][int]$Type=1, #maximum allowed value currently unknown
 	[ValidateRange(0,2)][int]$Sort=2, #not sure if there are more than 3 allowed values
 	[ValidateRange("NonNegative")][int]$ReplyPageLimit=[int]::MaxValue, #0: no additional pages
@@ -118,8 +118,6 @@ Write-Host "Object @ oid=$Oid has $CommentPageCount page(s) of comments, saving 
 if ($CommentPageCount -le 0) {
 	Throw "The object specified doesn't have any comments, or the server returned an error"
 }
-
-New-Item -ItemType Directory -Force -Path $Path|Out-Null
 
 if ($SaveMetadata) {
 	Write-Host "Saving metadata..."

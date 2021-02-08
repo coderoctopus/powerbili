@@ -14,4 +14,4 @@ Write-Host "Saving uploader statistics..."
 (Invoke-WebRequest "https://api.bilibili.com/x/relation/stat?vmid=$Uid&jsonp=jsonp").Content|Out-File (Join-Path $UploaderPath "stats2.json")
 
 Write-Host "Saving community posts..."
-#& $PSScriptRoot\uploader\community.ps1 $Uid -Path (Join-Path $UploaderPath "community")
+& $PSScriptRoot\community.ps1 $Uid -Path (Join-Path $UploaderPath "community")

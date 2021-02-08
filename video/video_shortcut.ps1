@@ -18,8 +18,7 @@ if ($bvid -eq "") {
 	$bvid=$Json|jq ".data.bvid" -r
 }
 
-$VideoPath=Join-Path $Path ($Json|jq ".data.title" -r|Remove-IllegalChars) #dir for one video
-New-Item -ItemType Directory -Force -Path $VideoPath|Out-Null
+$VideoPath=(New-Item -ItemType Directory -Force -Path (Join-Path $Path ($Json|jq ".data.title" -r|Remove-IllegalChars))).FullName #dir for one video
 
 Write-Host "Saving video statistics..."
 $Json|Out-File (Join-Path $VideoPath "info.json")
@@ -34,5 +33,5 @@ Write-Host "Saving episode info..."
 (Invoke-WebRequest "https://api.bilibili.com/x/player/pagelist?aid=$aid").Content|Out-File (Join-Path $VideoPath "episodes.json")
 
 Write-Host "Saving comments & replies..."
-& $PSScriptRoot\video\comment.ps1 $aid -Path (Join-Path $VideoPath "comments")
+& $PSScriptRoot\comment.ps1 $aid -Path (New-Item -ItemType Directory -Force -Path (Join-Path $VideoPath "comments")).FullName
 

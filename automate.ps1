@@ -1,5 +1,11 @@
+<#
+	.SYNOPSIS
+		Executes a command in an automated fashion.
+#>
+
 param (
-	[Parameter(Mandatory,Position=0)][ValidateScript({Test-Path $_}, ErrorMessage="The specified file does not exist.")][string]$File
+	[Parameter(Mandatory,Position=0)][string]$Command,
+	[Parameter(Mandatory,Position=1)][ValidateScript({Test-Path $_ -PathType leaf}, ErrorMessage="The specified file does not exist.")][string]$File
 )
 
 $Content=Get-Content $File
@@ -7,5 +13,5 @@ foreach ($Line in $Content) {
 	if ($Line -eq "") {
 		continue
 	}
-	& $PSScriptRoot\video_shortcut.ps1 $Line -Path "dec"
+	Invoke-Expression $Command
 }
