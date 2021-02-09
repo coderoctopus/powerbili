@@ -7,7 +7,8 @@ param (
 	[ValidateScript({Test-Path $_}, ErrorMessage="The specified directory does not exist.")][string]$Path="." #dir for all videos
 )
 
-Import-Module $PSScriptRoot\..\modules\Convert-IDType.psm1, $PSScriptRoot\..\modules\Remove-IllegalChars.psm1
+Import-Module $PSScriptRoot\..\modules\Convert-IDType.psm1, $PSScriptRoot\..\modules\Remove-IllegalChars.psm1, $PSScriptRoot\..\modules\New-UniqueEmptyDir.psm1
+
 
 $Json=Convert-IDType (Get-Variable $PSCmdlet.ParameterSetName -ValueOnly) -Raw
 
@@ -18,7 +19,7 @@ if ($bvid -eq "") {
 	$bvid=$Json|jq ".data.bvid" -r
 }
 
-$VideoPath=(New-Item -ItemType Directory -Force -Path (Join-Path $Path ($Json|jq ".data.title" -r|Remove-IllegalChars))).FullName #dir for one video
+$VideoPath=New-UniqueEmptyDir (Join-Path $Path ($Json|jq ".data.title" -r|Remove-IllegalChars)) #dir for one video
 
 Write-Host "Saving video statistics..."
 $Json|Out-File (Join-Path $VideoPath "info.json")

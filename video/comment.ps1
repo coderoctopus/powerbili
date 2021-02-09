@@ -17,6 +17,11 @@
 	.PARAMETER ReplyPageLimit
 		Specifies the limit for the number of pages of replies. Set this to 0 if you don't want additional
 		pages of replies.
+	.PARAMETER HotCommentsBehavior
+		Specifies whether and how to include hot comments in json files. Allowed values: 
+			Always (Not recommended because the entry is the same across all files)
+			Never (Default value, recommended if 'sort' is set to 2)
+			FirstPage (Recommended if 'sort' is set to 0 or 1)
 	.PARAMETER Interval
 		Specifies the interval between each web request.
 	.INPUTS
@@ -58,6 +63,11 @@ $BaseParams=@{
 	"type"=$Type
 	"oid"=$Oid
 	"sort"=$Sort
+}
+enum Behavior {
+	Always
+	FirstPage
+	Never
 }
 $HotParams=@{}
 if ($HotCommentsBehavior -eq "Never") {
