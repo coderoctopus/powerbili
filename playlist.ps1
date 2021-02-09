@@ -7,21 +7,29 @@ param (
 
 $DebugPreference="Inquire"
 
-function Get-JsonURL {
+function Get-WebJson {
 	param (
 		[Parameter(Position=0)][ValidateRange("Positive")][int]$Pn
 	)
-	"https://api.bilibili.com/x/v3/fav/resource/list?media_id=$MediaId&pn=$pn&ps=$ItemsPerPlaylist&keyword=&order=mtime&type=0&tid=0&platform=web&jsonp=jsonp"
+	
+	$QuereyParams=@{
+		"media_id"=$MediId
+		"pn"=$Pn
+		"ps"=$ItemsPerPlaylist
+		"order"="mtime"
+		"type"="0"
+		"tid"="0"
+	}
+	(Invoke-WebRequest "https://api.bilibili.com/x/v3/fav/resource/list" -Body $QuereyParams).Content
 }
 
 $result=""
 
 for ($($i=1;$HasNext=$true);$HasNext;++$i) {
-	$Json=(Invoke-WebRequest (Get-JsonURL $i)).Content|jq '{"bvids": [.data.medias[].bvid],"has_next": .data.has_more}'
+	$Json=(Get-WebJson $i)|jq '{"bvids": [.data.medias[].bvid],"has_next": .data.has_more}'
 	#Write-Debug "$Json"
 	$HasNext=[System.Convert]::ToBoolean(($Json|jq ".has_next"))
 	$result+=($Json|jq "[.bvids[]]")
-	#(Invoke-WebRequest (Get-JsonURL $i)).Content
 }
 
 foreach ($bvid in ($result|jq ".[]" -r)) {

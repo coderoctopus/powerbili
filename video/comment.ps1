@@ -1,6 +1,6 @@
 <#
 	.SYNOPSIS
-		Save Bilibili comments and replies.
+		Download Bilibili comments and replies.
 	.DESCRIPTION
 		Relies on the official API. 
 	.PARAMETER CommentsPerPage
@@ -15,7 +15,8 @@
 	.PARAMETER Sort
 		Specifies which sorting method should be used. Refer to the readme file for more info.
 	.PARAMETER ReplyPageLimit
-		Specifies the limit for the number of pages of replies. The same applies to 'CommentPageLimit'.
+		Specifies the limit for the number of pages of replies. Set this to 0 if you don't want additional
+		pages of replies.
 	.PARAMETER Interval
 		Specifies the interval between each web request.
 	.INPUTS
@@ -40,18 +41,28 @@ param (
 	[ValidateRange(1,20)][int]$RepliesPerPage=20,
 	[Parameter(Mandatory,Position=0)][ValidateRange("Positive")][int]$Oid,
 	[ValidateScript({Test-Path $_}, ErrorMessage="The specified directory does not exist.")][String]$Path=".",
-	[ValidateRange("Positive")][int]$Type=1, #maximum allowed value currently unknown
-	[ValidateRange(0,2)][int]$Sort=2, #not sure if there are more than 3 allowed values
+	[ValidateRange("Positive")][int]$Type=1,
+	[ValidateRange(0,2)][int]$Sort=2,
 	[ValidateRange("NonNegative")][int]$ReplyPageLimit=[int]::MaxValue, #0: no additional pages
 	[ValidateRange("Positive")][int]$CommentPageLimit=[int]::MaxValue,
 	[ValidateRange("NonNegative")][int]$Interval=0,
+	[ValidateSet("Always","FirstPage","Never")][String]$HotCommentsBehavior="Never",
 	[switch]$SaveMetadata=$true
 )
 
+$DebugPreference="Inquire"
+
 $CurrentPage=1
 $CachedDirState=$False #reduces disk access
-
-$DebugPreference="Inquire"
+$BaseParams=@{
+	"type"=$Type
+	"oid"=$Oid
+	"sort"=$Sort
+}
+$HotParams=@{}
+if ($HotCommentsBehavior -eq "Never") {
+	$HotParams=@{"nohot"="1"}
+}
 
 function Get-WebJson {
 	param (
@@ -59,11 +70,17 @@ function Get-WebJson {
 		[String]$Root
 	)
 	
-	(Invoke-WebRequest $(if ($Root -eq "") {
-		"https://api.bilibili.com/x/v2/reply?jsonp=jsonp&pn=${Pn}&type=${Type}&oid=${Oid}&sort=${Sort}&ps=$CommentsPerPage"
-	} else {
-		"https://api.bilibili.com/x/v2/reply/reply?jsonp=jsonp&pn=${Pn}&type=${Type}&oid=${Oid}&sort=${Sort}&ps=${RepliesPerPage}&root=$Root"
-	})).Content
+	$IsComment=$Root -eq ""
+	(Invoke-WebRequest "https://api.bilibili.com/x/v2/$(if(!$IsComment){'reply/'})reply" -Body (
+		$BaseParams+
+		$HotParams+
+		(@{"pn"=$Pn})+
+		$(if ($IsComment) {
+			@{"ps"=$CommentPageLimit}
+		} else {
+			@{"ps"=$ReplyPageLimit;"root"=$Root}
+		})
+	)).Content
 	
 	if ($Interval -ne 0) {
 		Write-Verbose "Start sleeping for $Interval second(s)"
@@ -81,7 +98,6 @@ function Out-Replies {
 	}
 	
 	Write-Host "Saving replies for page $CurrentPage..."
-	
 	$Comments=$Json|jq ".data.replies"
 	for ($i=0; $i -lt ($Comments|jq "length"); ++$i) { #this avoids errors caused by mismatch between different counting methods. sometimes the server returns 48 objects despite claiming (in .data.page.size) there are 49
 		$Comment=$Comments|jq ".[$i]"
@@ -97,7 +113,6 @@ function Out-Replies {
 		$ReplyPageCount=[Math]::Ceiling($ReplyCount/$RepliesPerPage)
 		
 		Write-Verbose "Comment @ rpid=$Rpid has $ReplyPageCount page(s) of replies, saving up to $ReplyPageLimit"
-		
 		for ($j=1; $j -le $(if ($ReplyPageCount -gt $ReplyPageLimit) {$ReplyPageLimit} else {$ReplyPageCount}); ++$j) {
 			Get-WebJson -pn $j -root $rpid|Out-File (Join-Path $Path "page${CurrentPage}_replies" "${Rpid}_page${j}.json")
 		}
@@ -108,11 +123,14 @@ function Out-Replies {
 if ($ReplyPageLimit -eq 0) {
 	Write-Warning "Collapsed replies are ignored"
 }
+
 Write-Host "Calculating total number of pages..."
-
 $Json=Get-WebJson -pn $CurrentPage
-[int]$CommentPageCount=[Math]::Ceiling(($Json|jq ".data.page.count")/$CommentsPerPage)
+if ($HotCommentsBehavior -eq "FirstPage") {
+	$HotParams=@{"nohot"="1"}
+}
 
+[int]$CommentPageCount=[Math]::Ceiling(($Json|jq ".data.page.count")/$CommentsPerPage)
 Write-Host "Object @ oid=$Oid has $CommentPageCount page(s) of comments, saving up to $CommentPageLimit"
 
 if ($CommentPageCount -le 0) {
@@ -133,7 +151,6 @@ if ($SaveMetadata) {
 }
 
 Write-Host "Saving page $CurrentPage..."
-
 $Json|Out-File (Join-Path $Path "page${currentPage}.json")
 $Json|Out-Replies 
 
@@ -142,7 +159,6 @@ for ($i=2; $i -le $(if ($CommentPageCount -gt $CommentPageLimit) {$CommentPageLi
 	$Json=Get-WebJson -pn $CurrentPage
 	
 	Write-Host "Saving page $CurrentPage..."
-	
 	$Json|Out-File (Join-Path $Path "page${currentPage}.json")
 	$Json|Out-Replies
 }

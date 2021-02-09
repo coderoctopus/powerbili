@@ -26,9 +26,8 @@ function Convert-IDType {
 		[switch]$Raw
 	)
 	
-	$BaseUrl="https://api.bilibili.com/x/web-interface/view?"
 	$ParamName=$PSCmdlet.ParameterSetName
-	$Json=(Invoke-WebRequest "$BaseUrl$ParamName=$(Get-Variable $ParamName -ValueOnly)").Content
+	$Json=(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/view" -Body @{$ParamName=Get-Variable $ParamName -ValueOnly}).Content
 	if ($Raw) {
 		$Json
 		return
