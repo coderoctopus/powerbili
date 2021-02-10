@@ -45,7 +45,7 @@ param (
 	[ValidateRange(1,49)][int]$CommentsPerPage=49,
 	[ValidateRange(1,20)][int]$RepliesPerPage=20,
 	[Parameter(Mandatory,Position=0)][ValidateRange("Positive")][int]$Oid,
-	[ValidateScript({Test-Path $_}, ErrorMessage="The specified directory does not exist.")][String]$Path=".",
+	[ValidateScript({Test-Path -LiteralPath $_}, ErrorMessage="The specified directory does not exist.")][String]$Path=".",
 	[ValidateRange("Positive")][int]$Type=1,
 	[ValidateRange(0,2)][int]$Sort=2,
 	[ValidateRange("NonNegative")][int]$ReplyPageLimit=[int]::MaxValue, #0: no additional pages
@@ -124,7 +124,7 @@ function Out-Replies {
 		
 		Write-Verbose "Comment @ rpid=$Rpid has $ReplyPageCount page(s) of replies, saving up to $ReplyPageLimit"
 		for ($j=1; $j -le $(if ($ReplyPageCount -gt $ReplyPageLimit) {$ReplyPageLimit} else {$ReplyPageCount}); ++$j) {
-			Get-WebJson -pn $j -root $rpid|Out-File (Join-Path $Path "page${CurrentPage}_replies" "${Rpid}_page${j}.json")
+			Get-WebJson -pn $j -root $rpid|Out-File -LiteralPath (Join-Path $Path "page${CurrentPage}_replies" "${Rpid}_page${j}.json")
 		}
 	}
 	$CachedDirState=$false
@@ -157,11 +157,11 @@ if ($SaveMetadata) {
 		"sort"=$Sort
 		"comment_page_limit"=$CommentPageLimit
 		"reply_page_limit"=$ReplyPageLimit
-	}|ConvertTo-Json|Out-File (Join-Path $Path "metadata.json")
+	}|ConvertTo-Json|Out-File -LiteralPath (Join-Path $Path "metadata.json")
 }
 
 Write-Host "Saving page $CurrentPage..."
-$Json|Out-File (Join-Path $Path "page${currentPage}.json")
+$Json|Out-File -LiteralPath (Join-Path $Path "page${currentPage}.json")
 $Json|Out-Replies 
 
 for ($i=2; $i -le $(if ($CommentPageCount -gt $CommentPageLimit) {$CommentPageLimit} else {$CommentPageCount}); ++$i) {
@@ -169,7 +169,7 @@ for ($i=2; $i -le $(if ($CommentPageCount -gt $CommentPageLimit) {$CommentPageLi
 	$Json=Get-WebJson -pn $CurrentPage
 	
 	Write-Host "Saving page $CurrentPage..."
-	$Json|Out-File (Join-Path $Path "page${currentPage}.json")
+	$Json|Out-File -LiteralPath (Join-Path $Path "page${currentPage}.json")
 	$Json|Out-Replies
 }
 

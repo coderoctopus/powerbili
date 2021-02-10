@@ -2,7 +2,7 @@
 param (
 	[ValidateRange(1,20)][int]$ItemsPerPlaylist=20,
 	[Parameter(Position=0)][ValidateRange("Positive")][int]$MediaId=1112724373,
-	[Parameter(Mandatory)][ValidateScript({Test-Path $_}, ErrorMessage="The specified directory does not exist.")][string]$Path
+	[Parameter(Mandatory)][ValidateScript({Test-Path -LiteralPath $_}, ErrorMessage="The specified directory does not exist.")][string]$Path
 )
 
 $DebugPreference="Inquire"

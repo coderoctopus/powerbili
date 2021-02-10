@@ -16,5 +16,4 @@ foreach ($Line in $Content) {
 		continue
 	}
 	Invoke-Expression $Command
-	Write-Debug "pause"
 }
