@@ -12,16 +12,11 @@
 		Specifies the folder in which the 'comments' folder will be saved.
 	.PARAMETER Type
 		Specifies the type of the object-of-interest. Refer to the readme file for a list of allowed values.
-	.PARAMETER Sort
+	.PARAMETER Mode
 		Specifies which sorting method should be used. Refer to the readme file for more info.
 	.PARAMETER ReplyPageLimit
 		Specifies the limit for the number of pages of replies. Set this to 0 if you don't want additional
 		pages of replies.
-	.PARAMETER HotCommentsBehavior
-		Specifies whether and how to include hot comments in json files. Allowed values: 
-			Always (Not recommended because the entry is the same across all files)
-			Never (Default value, recommended if 'sort' is set to 2)
-			FirstPage (Recommended if 'sort' is set to 0 or 1)
 	.PARAMETER Interval
 		Specifies the interval between each web request.
 	.INPUTS
@@ -47,44 +42,32 @@ param (
 	[Parameter(Mandatory,Position=0)][ValidateRange("Positive")][int]$Oid,
 	[ValidateScript({Test-Path -LiteralPath $_}, ErrorMessage="The specified directory does not exist.")][String]$Path=".",
 	[ValidateRange("Positive")][int]$Type=1,
-	[ValidateRange(0,2)][int]$Sort=2,
+	[ValidateRange(0,2)][int]$Mode=0,
 	[ValidateRange("NonNegative")][int]$ReplyPageLimit=[int]::MaxValue, #0: no additional pages
 	[ValidateRange("Positive")][int]$CommentPageLimit=[int]::MaxValue,
 	[ValidateRange("NonNegative")][int]$Interval=0,
-	[ValidateSet("Always","FirstPage","Never")][String]$HotCommentsBehavior="Never",
-	[switch]$SaveMetadata=$true
+	[switch]$NoMetadata
 )
 
 $DebugPreference="Inquire"
 
-$CurrentPage=1
 $CachedDirState=$False #reduces disk access
 $BaseParams=@{
 	"type"=$Type
 	"oid"=$Oid
-	"sort"=$Sort
-}
-enum Behavior {
-	Always
-	FirstPage
-	Never
-}
-$HotParams=@{}
-if ($HotCommentsBehavior -eq "Never") {
-	$HotParams=@{"nohot"="1"}
+	"mode"=$Mode
 }
 
 function Get-WebJson {
 	param (
-		[Parameter(Mandatory)][int]$Pn,
+		[Parameter(Mandatory)][int]$Next,
 		[String]$Root
 	)
 	
 	$IsComment=$Root -eq ""
-	(Invoke-WebRequest "https://api.bilibili.com/x/v2/$(if(!$IsComment){'reply/'})reply" -Body (
+	(Invoke-WebRequest "https://api.bilibili.com/x/v2/reply/$(if($IsComment){'main'}else{'detail'})" -Body (
 		$BaseParams+
-		$HotParams+
-		(@{"pn"=$Pn})+
+		(@{"next"=$Next})+
 		$(if ($IsComment) {
 			@{"ps"=$CommentPageLimit}
 		} else {
@@ -98,79 +81,86 @@ function Get-WebJson {
 	}
 }
 
-function Out-Replies {
-	param (
-		[Parameter(ValueFromPipeline)][String]$Json
-	)
-	
-	if ($ReplyPageLimit -eq 0) {
-		return
-	}
-	
-	Write-Host "Saving replies for page $CurrentPage..."
-	$Comments=$Json|jq ".data.replies"
-	for ($i=0; $i -lt ($Comments|jq "length"); ++$i) { #this avoids errors caused by mismatch between different counting methods. sometimes the server returns 48 objects despite claiming (in .data.page.size) there are 49
-		$Comment=$Comments|jq ".[$i]"
-		[int]$ReplyCount=$Comment|jq ".rcount"
-		if ($ReplyCount -eq [int]($Comment|jq ".replies|length")) {
-			continue
-		}
-		if (!$CachedDirState) { 
-			New-Item -ItemType Directory -Force -Path (Join-Path $Path "page${CurrentPage}_replies")|Out-Null #putting this in the for loop avoids the creation of empty folders
-			$CachedDirState=$True
-		}
-		$Rpid=$Comment|jq ".rpid"
-		$ReplyPageCount=[Math]::Ceiling($ReplyCount/$RepliesPerPage)
-		
-		Write-Verbose "Comment @ rpid=$Rpid has $ReplyPageCount page(s) of replies, saving up to $ReplyPageLimit"
-		for ($j=1; $j -le $(if ($ReplyPageCount -gt $ReplyPageLimit) {$ReplyPageLimit} else {$ReplyPageCount}); ++$j) {
-			Get-WebJson -pn $j -root $rpid|Out-File -LiteralPath (Join-Path $Path "page${CurrentPage}_replies" "${Rpid}_page${j}.json")
-		}
-	}
-	$CachedDirState=$false
-}
-
 if ($ReplyPageLimit -eq 0) {
 	Write-Warning "Collapsed replies are ignored"
 }
 
-Write-Host "Calculating total number of pages..."
-$Json=Get-WebJson -pn $CurrentPage
-if ($HotCommentsBehavior -eq "FirstPage") {
-	$HotParams=@{"nohot"="1"}
-}
-
-[int]$CommentPageCount=[Math]::Ceiling(($Json|jq ".data.page.count")/$CommentsPerPage)
-Write-Host "Object @ oid=$Oid has $CommentPageCount page(s) of comments, saving up to $CommentPageLimit"
-
-if ($CommentPageCount -le 0) {
-	Throw "The object specified doesn't have any comments, or the server returned an error"
-}
-
-if ($SaveMetadata) {
+if (!$NoMetadata) {
 	Write-Host "Saving metadata..."
 	@{
 		"oid"=$Oid
 		"type"=$Type
 		"comments_per_page"=$CommentsPerPage
 		"replies_per_page"=$RepliesPerPage
-		"sort"=$Sort
+		"sort"=$Mode
 		"comment_page_limit"=$CommentPageLimit
 		"reply_page_limit"=$ReplyPageLimit
 	}|ConvertTo-Json|Out-File -LiteralPath (Join-Path $Path "metadata.json")
 }
 
-Write-Host "Saving page $CurrentPage..."
-$Json|Out-File -LiteralPath (Join-Path $Path "page${currentPage}.json")
-$Json|Out-Replies 
-
-for ($i=2; $i -le $(if ($CommentPageCount -gt $CommentPageLimit) {$CommentPageLimit} else {$CommentPageCount}); ++$i) {
-	$CurrentPage=$i
-	$Json=Get-WebJson -pn $CurrentPage
+$NextId=0
+while (++$i) {
+	if ($i -gt $CommentPageLimit) {
+		break
+	}
 	
-	Write-Host "Saving page $CurrentPage..."
-	$Json|Out-File -LiteralPath (Join-Path $Path "page${currentPage}.json")
-	$Json|Out-Replies
+	$Json=(Get-WebJson -Next $NextId)
+	$JsonObject=$Json|ConvertFrom-Json
+	
+	if ($JsonObject.code -ne 0) {
+		Throw "The server returned an error: "+$JsonObject.message
+	}
+
+	if (($JsonObject.data.cursor.is_end -eq $null) -or $JsonObject.data.cursor.is_end) {
+		break
+	}
+	
+	$NextId=$JsonObject.data.cursor.next
+	
+	Write-Host "Saving page $i..."
+	$Json|Out-File -LiteralPath (Join-Path $Path "page$i.json")
+	
+	if ($ReplyPageLimit -eq 0) {
+		continue
+	}
+	
+	Write-Host "Saving replies for page $i..."
+	foreach ($Comment in $JsonObject.data.replies) {
+		if ($Comment.rcount -eq $Comment.replies.Length) {
+			continue
+		}
+		
+		if (!$CachedDirState) { 
+			New-Item -ItemType Directory -Force -Path (Join-Path $Path "page${i}_replies")|Out-Null #putting this in the for loop avoids the creation of empty folders
+			$CachedDirState=$True
+		}
+
+		$RNextId=0
+		$j=0
+		while (++$j) {
+			if ($j -gt $ReplyPageLimit) {
+				break
+			}
+			
+			$RJson=Get-WebJson -Next $RNextId -root $Rpid
+			$RJsonObject=$RJson|ConvertFrom-Json
+			
+			if ($RJsonObject.code -ne 0) {
+				Throw "The server returned an error: "+$RJsonObject.message
+			}
+			
+			if (($RJsonObject.data.cursor.is_end -eq $null) -or $RJsonObject.data.cursor.is_end) {
+				break
+			}
+			
+			$RNextId=$RJsonObject.data.cursor.next
+			
+			$Rpid=$Comment.rpid
+			Write-Host "Saving replies for comment @ rpid=$Rpid"
+			$RJson|Out-File -LiteralPath (Join-Path $Path "page${i}_replies" "${Rpid}_page$j.json")
+		}
+	}
+	$CachedDirState=$false
 }
 
-Write-Host "All done."
+Write-Host "Done!"
