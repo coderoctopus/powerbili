@@ -52,6 +52,7 @@ param (
 $DebugPreference="Inquire"
 
 $CachedDirState=$False #reduces disk access
+$HasUnsavedComments=$False #true if there are unsaved comments (not replies). Whether a specific comment has unsaved replies can be inferred from the 'rcount' property
 $BaseParams=@{
 	"type"=$Type
 	"oid"=$Oid
@@ -83,19 +84,6 @@ function Get-WebJson {
 
 if ($ReplyPageLimit -eq 0) {
 	Write-Warning "Collapsed replies are ignored"
-}
-
-if (!$NoMetadata) {
-	Write-Host "Saving metadata..."
-	@{
-		"oid"=$Oid
-		"type"=$Type
-		"comments_per_page"=$CommentsPerPage
-		"replies_per_page"=$RepliesPerPage
-		"sort"=$Mode
-		"comment_page_limit"=$CommentPageLimit
-		"reply_page_limit"=$ReplyPageLimit
-	}|ConvertTo-Json|Out-File -LiteralPath (Join-Path $Path "metadata.json")
 }
 
 $NextId=0
@@ -162,6 +150,20 @@ while (++$i) {
 		}
 	}
 	$CachedDirState=$false
+}
+
+if (!$NoMetadata) {
+	Write-Host "Saving metadata..."
+	@{
+		"oid"=$Oid
+		"type"=$Type
+		"comments_per_page"=$CommentsPerPage
+		"replies_per_page"=$RepliesPerPage
+		"sort"=$Mode
+		"comment_page_limit"=$CommentPageLimit
+		"reply_page_limit"=$ReplyPageLimit
+		"has_unsaved_comments"=$HasUnsavedComments
+	}|ConvertTo-Json|Out-File -LiteralPath (Join-Path $Path "metadata.json")
 }
 
 Write-Host "Done!"
