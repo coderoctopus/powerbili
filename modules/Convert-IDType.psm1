@@ -29,10 +29,23 @@ function Convert-IDType {
 	$ParamName=$PSCmdlet.ParameterSetName
 	$Json=(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/view" -Body @{$ParamName=Get-Variable $ParamName -ValueOnly}).Content
 	if ($Raw) {
-		$Json
-		return
+		return $Json
 	}
-	$Json|jq ".data.$('aidbvid' -replace $ParamName,'')" -r
+	
+	$JsonObject=$Json|ConvertFrom-Json
+	if ($JsonObject.code -eq 0) {
+		return $JsonObject.data|Select -ExpandProperty ("aidbvid" -replace $ParamName,"")
+	}
+	
+	Write-Error ("The server returned an error: "+$JsonObject.message+", trying an alternative API")
+	$Json=(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/archive/stat" -Body @{$ParamName=Get-Variable $ParamName -ValueOnly}).Content
+	
+	$JsonObject=$Json|ConvertFrom-Json
+	if ($JsonObject.code -eq 0) {
+		return $JsonObject.data|Select -ExpandProperty ("aidbvid" -replace $ParamName,"")
+	}
+	
+	Throw ("The server returned an error: "+$JsonObject.message)
 }
 
 #[ValidateScript({($_ -cmatch "BV[1-9A-HJ-NP-Za-km-z]{10}") -or ([int]$_ -gt 0)}, ErrorMessage="Invalid aid or bvid.")][Parameter(Mandatory,Position=0)]$id,

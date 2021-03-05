@@ -1,37 +1,47 @@
 [CmdletBinding()]
 param (
 	[ValidateRange(1,20)][int]$ItemsPerPlaylist=20,
-	[Parameter(Position=0)][ValidateRange("Positive")][int]$MediaId=1112724373,
+	[Parameter(Mandatory,Position=0)][ValidateRange("Positive")][int]$MediaId,
 	[Parameter(Mandatory)][ValidateScript({Test-Path -LiteralPath $_}, ErrorMessage="The specified directory does not exist.")][string]$Path
 )
 
 $DebugPreference="Inquire"
 
+$QueryParams=@{
+	"media_id"=$MediaId
+	"ps"=$ItemsPerPlaylist
+	"order"="mtime"
+	"type"="0"
+	"tid"="0"
+}
+
 function Get-WebJson {
 	param (
 		[Parameter(Position=0)][ValidateRange("Positive")][int]$Pn
 	)
+
+	(Invoke-WebRequest "https://api.bilibili.com/x/v3/fav/resource/list" -Body ($QueryParams+@{"pn"=$Pn})).Content
+}
+
+$Result=@()
+while (++$i) {
+	$JsonObject=(Get-WebJson $i)|ConvertFrom-Json
 	
-	$QuereyParams=@{
-		"media_id"=$MediId
-		"pn"=$Pn
-		"ps"=$ItemsPerPlaylist
-		"order"="mtime"
-		"type"="0"
-		"tid"="0"
+	if ($JsonObject.code -ne 0) {
+		Throw "The server returned an error: "+$JsonObject.message
 	}
-	(Invoke-WebRequest "https://api.bilibili.com/x/v3/fav/resource/list" -Body $QuereyParams).Content
+	
+	foreach ($Item in $JsonObject.data.medias) {
+		$Result+=[int]$Item.id
+	}
+	
+	if (!$JsonObject.data.has_more) {
+		break
+	}
 }
 
-$result=""
-
-for ($($i=1;$HasNext=$true);$HasNext;++$i) {
-	$Json=(Get-WebJson $i)|jq '{"bvids": [.data.medias[].bvid],"has_next": .data.has_more}'
-	#Write-Debug "$Json"
-	$HasNext=[System.Convert]::ToBoolean(($Json|jq ".has_next"))
-	$result+=($Json|jq "[.bvids[]]")
-}
-
-foreach ($bvid in ($result|jq ".[]" -r)) {
-	bilili "https://www.bilibili.com/video/$bvid" -d $Path
+foreach ($aid in $Result) {
+	& $PSScriptRoot\video\video-shortcut.ps1 $aid -Path $Path -OnErrorUseBiliPlus #bilili "https://www.bilibili.com/video/$bvid" -d $Path
+	Write-Host "Start sleeping for 10 seconds..."
+	Start-Sleep 10
 }

@@ -5,6 +5,7 @@ param (
 	[ValidateRange("Positive")][Parameter(Mandatory,ParameterSetName="aid",Position=0)][int]$aid,
 	[ValidatePattern("BV[1-9A-HJ-NP-Za-km-z]{10}",Options="None")][Parameter(Mandatory,ParameterSetName="bvid",Position=0)][string]$bvid,
 	[ValidateScript({Test-Path -LiteralPath $_}, ErrorMessage="The specified directory does not exist.")][string]$Path=".",#dir for all videos
+	[switch]$OnErrorUseBiliPlus, #SLOW
 	[switch]$NoStats,
 	[switch]$NoTags,
 	[switch]$NoDescription,
@@ -14,35 +15,66 @@ param (
 
 Import-Module $PSScriptRoot\..\modules\Convert-IDType.psm1, $PSScriptRoot\..\modules\Remove-IllegalChars.psm1, $PSScriptRoot\..\modules\New-UniqueEmptyDir.psm1
 
+$DebugPreference="Inquire"
 
 $Json=Convert-IDType (Get-Variable $PSCmdlet.ParameterSetName -ValueOnly) -Raw
+$JsonObject=$Json|ConvertFrom-Json
 
-if ($aid -eq 0) {
-	$aid=[int]($Json|jq ".data.aid")
-}
-if ($bvid -eq "") {
-	$bvid=$Json|jq ".data.bvid" -r
+$Title=""
+$InfoFileName="info.json"
+if ($JsonObject.code -eq 0) {
+	if ($aid -eq 0) {
+		$aid=$JsonObject.data.aid
+	}
+	$Title=$JsonObject.data.title
+} else {
+	if ($aid -eq 0) {
+		Throw ("The server returned an error: "+$JsonObject.message+". Please try specifying AID instead of BVID so the script can skip the conversion and continue.")
+	}
+	
+	if ($OnErrorUseBiliPlus) {
+		Write-Warning ("The server returned an error: "+$JsonObject.message+", trying BiliPlus instead")
+		$Json=[System.Text.Encoding]::UTF8.GetString([System.Text.Encoding]::GetEncoding(28591).GetBytes((Invoke-WebRequest "https://www.biliplus.com/api/view?id=$aid").Content)) #biliplus returns charset="UTF-8" instead of charset=utf-8
+		$JsonObject=$Json|ConvertFrom-Json
+		
+		if ($JsonObject.code -ne $null) {
+			Write-Error ("BiliPlus server returned an error: "+$JsonObject.message+". Further queries will likely fail as well.")
+		}
+		
+		$Title=$JsonObject.title
+		$InfoFileName="info-biliplus.json"
+	} else {
+		Write-Error ("The server returned an error: "+$JsonObject.message+". Further queries may fail as well. To try to retrieve more info about this object, use the flag -OnErrorUseBiliPlus.")
+	}
 }
 
-$VideoPath=New-UniqueEmptyDir (Join-Path $Path ($Json|jq ".data.title" -r|Remove-IllegalChars)) #dir for one video
+$VideoPath=New-UniqueEmptyDir (Join-Path $Path ($Title|Remove-IllegalChars)) #dir for one video
 
 if (!$NoStats) {
 	Write-Host "Saving video statistics..."
-	$Json|Out-File -LiteralPath (Join-Path $VideoPath "info.json")
+	$Json|Out-File -LiteralPath (Join-Path $VideoPath $InfoFileName)
 }
+
 if (!$NoTags) {
 	Write-Host "Saving tag info..."
 	(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/view/detail/tag?aid=$aid").Content|Out-File -LiteralPath (Join-Path $VideoPath "tags.json")
 }
+
 if (!$NoDescription) {
 	Write-Host "Saving video description..."
 	(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/archive/desc?&aid=$aid").Content|Out-File -LiteralPath (Join-Path $VideoPath "description.json")
 }
+
 if (!$NoEpInfo) { 
 	Write-Host "Saving episode info..."
 	(Invoke-WebRequest "https://api.bilibili.com/x/player/pagelist?aid=$aid").Content|Out-File -LiteralPath (Join-Path $VideoPath "episodes.json")
 }
+
 if (!$NoCommentsReplies) {
 	Write-Host "Saving comments & replies..."
-	& $PSScriptRoot\comment.ps1 $aid -Path (New-Item -ItemType Directory -Force -Path (Join-Path $VideoPath "comments")).FullName
+	try {
+		& $PSScriptRoot\comment.ps1 $aid -Path (New-Item -ItemType Directory -Force -Path (Join-Path $VideoPath "comments")).FullName
+	} catch {
+		Write-Error $Error[0]
+	}
 }

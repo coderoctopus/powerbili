@@ -69,9 +69,9 @@ function Get-WebJson {
 		$BaseParams+
 		(@{"next"=$Next})+
 		$(if ($IsComment) {
-			@{"ps"=$CommentPageLimit}
+			@{"ps"=$CommentPerPage}
 		} else {
-			@{"ps"=$ReplyPageLimit;"root"=$Root}
+			@{"ps"=$ReplyPerPage;"root"=$Root}
 		})
 	)).Content
 	
@@ -99,6 +99,7 @@ if (!$NoMetadata) {
 }
 
 $NextId=0
+$i=0
 while (++$i) {
 	if ($i -gt $CommentPageLimit) {
 		break
@@ -134,7 +135,8 @@ while (++$i) {
 			New-Item -ItemType Directory -Force -Path (Join-Path $Path "page${i}_replies")|Out-Null #putting this in the for loop avoids the creation of empty folders
 			$CachedDirState=$True
 		}
-
+		
+		$Rpid=$Comment.rpid
 		$RNextId=0
 		$j=0
 		while (++$j) {
@@ -155,7 +157,6 @@ while (++$i) {
 			
 			$RNextId=$RJsonObject.data.cursor.next
 			
-			$Rpid=$Comment.rpid
 			Write-Host "Saving replies for comment @ rpid=$Rpid"
 			$RJson|Out-File -LiteralPath (Join-Path $Path "page${i}_replies" "${Rpid}_page$j.json")
 		}

@@ -16,6 +16,7 @@ if (!$NoStats) {
 	(Invoke-WebRequest "https://api.bilibili.com/x/space/upstat?mid=$Uid&jsonp=jsonp").Content|Out-File -LiteralPath (Join-Path $UploaderPath "stats.json")
 	(Invoke-WebRequest "https://api.bilibili.com/x/relation/stat?vmid=$Uid&jsonp=jsonp").Content|Out-File -LiteralPath (Join-Path $UploaderPath "stats2.json")
 }
+
 if (!$NoCommunity) {
 	Write-Host "Saving community posts..."
 	& $PSScriptRoot\community.ps1 $Uid -Path (Join-Path $UploaderPath "community")

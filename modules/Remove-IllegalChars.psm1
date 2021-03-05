@@ -6,15 +6,24 @@ function Remove-IllegalChars {
 			ASCII control characters (0x00 to 0x1f) are replaced with spaces. Others
 			(e.g. pipe and quote) are replaced with their full-width counterparts.
 		.EXAMPLE
-			PS C:\> Legalize-FileName '"\/<>?*|:'
+			PS C:\> Remove-IllegalChars '"\/<>?*|:'
 			＂＼／＜＞？＊｜：
+			PS C:\> Remove-IllegalChars "Foo: Bar"
+			Foo：Bar
+			PS C:\> Remove-IllegalChars "Foo: Bar" -KeepSpace
+			Foo： Bar
 		.LINK
 			https://docs.microsoft.com/en-us/dotnet/api/system.io.path.getinvalidfilenamechars?view=net-5.0
 	#>
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory,ValueFromPipeline,Position=0)][ValidateNotNullOrEmpty()][String]$Name
+		[Parameter(Mandatory,ValueFromPipeline,Position=0)][AllowEmptyString()][String]$Name,
+		[switch]$KeepSpace
 	)
+	
+	if ($Name -eq "") {
+		return "null"
+	}
 	
 	$Chars=$Name.ToCharArray()
 	$i=-1
@@ -24,9 +33,18 @@ function Remove-IllegalChars {
 			return $Chars -join ""
 		}
 		if ([int]$Chars[$i] -lt 32) {
-			$Chars[$i]=[char]32 #replaced with spaces
+			$Chars[$i]=$null
 			continue
 		}
 		$Chars[$i]=[char]([int]$Chars[$i]+0xfee0) #converts to full width chars
+		if ($KeepSpace) {
+			continue
+		}
+		if (($i -gt $Chars.GetLowerBound(0)) -and ([int]$Chars[$i-1] -eq 32)) {
+			$Chars[$i-1]=$null
+		}
+		if (($i -lt $Chars.GetUpperBound(0)) -and ([int]$Chars[$i+1] -eq 32)) {
+			$Chars[$i+1]=$null
+		}
 	}
 }

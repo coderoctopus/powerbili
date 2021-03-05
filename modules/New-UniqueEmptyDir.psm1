@@ -16,7 +16,7 @@ function New-UniqueEmptyDir {
 	)
 	
 	$ProperPath=(New-Item -ItemType Directory -Force -Path $Path).FullName
-	if ((Get-ChildItem $ProperPath -Force | Select-Object -First 1 | Measure-Object).Count -eq 0) {
+	if ((Get-ChildItem $ProperPath -Force|Select-Object -First 1|Measure-Object).Count -eq 0) {
 		return $ProperPath
 	}
 	New-UniqueEmptyDir $(if ($ProperPath -match " \(([0-9]+)\)$") {$ProperPath -replace $Matches[1],([int]$Matches[1]+1)} else {$ProperPath+" (2)"})
