@@ -37,7 +37,7 @@
 
 [CmdletBinding()]
 param (
-	[ValidateRange(1,49)][int]$CommentsPerPage=49,
+	[ValidateRange(1,20)][int]$CommentsPerPage=20,
 	[ValidateRange(1,20)][int]$RepliesPerPage=20,
 	[Parameter(Mandatory,Position=0)][ValidateRange("Positive")][int]$Oid,
 	[ValidateScript({Test-Path -LiteralPath $_}, ErrorMessage="The specified directory does not exist.")][String]$Path=".",
@@ -159,10 +159,11 @@ if (!$NoMetadata) {
 		"type"=$Type
 		"comments_per_page"=$CommentsPerPage
 		"replies_per_page"=$RepliesPerPage
-		"sort"=$Mode
+		"sort"=$Mode #depends on the api
 		"comment_page_limit"=$CommentPageLimit
 		"reply_page_limit"=$ReplyPageLimit
 		"has_unsaved_comments"=$HasUnsavedComments
+		"time_archived"=[DateTimeOffset]::Now.ToUnixTimeSeconds()
 	}|ConvertTo-Json|Out-File -LiteralPath (Join-Path $Path "metadata.json")
 }
 

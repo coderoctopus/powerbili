@@ -3,8 +3,8 @@ function Remove-IllegalChars {
 		.SYNOPSIS
 			Replaces illegal characters in a file name.
 		.DESCRIPTION
-			ASCII control characters (0x00 to 0x1f) are replaced with spaces. Others
-			(e.g. pipe and quote) are replaced with their full-width counterparts.
+			ASCII control characters (0x00 to 0x1f) are simply removed from the name. Other
+			illegal characters (e.g. pipe and quote) are replaced with their full-width counterparts.
 		.EXAMPLE
 			PS C:\> Remove-IllegalChars '"\/<>?*|:'
 			＂＼／＜＞？＊｜：
@@ -14,6 +14,7 @@ function Remove-IllegalChars {
 			Foo： Bar
 		.LINK
 			https://docs.microsoft.com/en-us/dotnet/api/system.io.path.getinvalidfilenamechars?view=net-5.0
+			https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 	#>
 	[CmdletBinding()]
 	param (
