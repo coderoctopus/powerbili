@@ -1,4 +1,5 @@
 #shortcut to saving (ideally) all info related to a video
+#todo: video downloader
 
 [CmdletBinding()]
 param (
@@ -48,32 +49,33 @@ if ($JsonObject.code -eq 0) {
 	}
 }
 
-$VideoPath=New-UniqueEmptyDir (Join-Path $Path ($Title|Remove-IllegalChars)) #dir for one video
+#$VideoPath=New-UniqueEmptyDir (Join-Path $Path ($Title|Remove-IllegalChars)) #todo: use this after incorporating the downloader
+$RawDataPath=(Join-Path $Path ($Title|Remove-IllegalChars) "rawdata")
 
 if (!$NoStats) {
 	Write-Host "Saving video statistics..."
-	$Json|Out-File -LiteralPath (Join-Path $VideoPath $InfoFileName)
+	$Json|Out-File -LiteralPath (Join-Path $RawDataPath $InfoFileName)
 }
 
 if (!$NoTags) {
 	Write-Host "Saving tag info..."
-	(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/view/detail/tag?aid=$aid").Content|Out-File -LiteralPath (Join-Path $VideoPath "tags.json")
+	(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/view/detail/tag?aid=$aid").Content|Out-File -LiteralPath (Join-Path $RawDataPath "tags.json")
 }
 
 if (!$NoDescription) {
 	Write-Host "Saving video description..."
-	(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/archive/desc?&aid=$aid").Content|Out-File -LiteralPath (Join-Path $VideoPath "description.json")
+	(Invoke-WebRequest "https://api.bilibili.com/x/web-interface/archive/desc?&aid=$aid").Content|Out-File -LiteralPath (Join-Path $RawDataPath "description.json")
 }
 
 if (!$NoEpInfo) { 
 	Write-Host "Saving episode info..."
-	(Invoke-WebRequest "https://api.bilibili.com/x/player/pagelist?aid=$aid").Content|Out-File -LiteralPath (Join-Path $VideoPath "episodes.json")
+	(Invoke-WebRequest "https://api.bilibili.com/x/player/pagelist?aid=$aid").Content|Out-File -LiteralPath (Join-Path $RawDataPath "episodes.json")
 }
 
 if (!$NoCommentsReplies) {
 	Write-Host "Saving comments & replies..."
 	try {
-		& $PSScriptRoot\comment.ps1 $aid -Path (New-Item -ItemType Directory -Force -Path (Join-Path $VideoPath "comments")).FullName
+		& $PSScriptRoot\comment.ps1 $aid -Path (New-Item -ItemType Directory -Force -Path (Join-Path $RawDataPath "comments")).FullName
 	} catch {
 		Write-Error $Error[0]
 	}
