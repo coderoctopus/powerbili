@@ -50,7 +50,7 @@ if ($JsonObject.code -eq 0) {
 }
 
 #$VideoPath=New-UniqueEmptyDir (Join-Path $Path ($Title|Remove-IllegalChars)) #todo: use this after incorporating the downloader
-$RawDataPath=(Join-Path $Path ($Title|Remove-IllegalChars) "rawdata")
+$RawDataPath=(New-Item -Path (Join-Path (New-UniqueEmptyDir (Join-Path $Path ($Title|Remove-IllegalChars))) "rawdata") -Type Directory).FullName
 
 if (!$NoStats) {
 	Write-Host "Saving video statistics..."

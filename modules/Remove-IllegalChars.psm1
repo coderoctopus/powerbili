@@ -22,7 +22,7 @@ function Remove-IllegalChars {
 		[switch]$KeepSpace
 	)
 	
-	if ($Name -eq "") {
+	if (($Name -eq "") -or ($Name -eq $Null)) {
 		return "null"
 	}
 	

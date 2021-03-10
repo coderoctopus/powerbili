@@ -1,8 +1,7 @@
 [CmdletBinding()]
 param (
 	[ValidateRange(1,20)][int]$ItemsPerPlaylist=20,
-	[Parameter(Mandatory,Position=0)][ValidateRange("Positive")][int]$MediaId,
-	[Parameter(Mandatory)][ValidateScript({Test-Path -LiteralPath $_}, ErrorMessage="The specified directory does not exist.")][string]$Path
+	[Parameter(Mandatory,Position=0)][ValidateRange("Positive")][int]$MediaId
 )
 
 $DebugPreference="Inquire"
@@ -23,7 +22,6 @@ function Get-WebJson {
 	(Invoke-WebRequest "https://api.bilibili.com/x/v3/fav/resource/list" -Body ($QueryParams+@{"pn"=$Pn})).Content
 }
 
-$Result=@()
 while (++$i) {
 	$JsonObject=(Get-WebJson $i)|ConvertFrom-Json
 	
@@ -32,16 +30,10 @@ while (++$i) {
 	}
 	
 	foreach ($Item in $JsonObject.data.medias) {
-		$Result+=[int]$Item.id
+		[int]$Item.id
 	}
 	
 	if (!$JsonObject.data.has_more) {
 		break
 	}
-}
-
-foreach ($aid in $Result) {
-	& $PSScriptRoot\video\video-shortcut.ps1 $aid -Path $Path -OnErrorUseBiliPlus #bilili "https://www.bilibili.com/video/$bvid" -d $Path
-	Write-Host "Start sleeping for 10 seconds..."
-	Start-Sleep 10
 }
