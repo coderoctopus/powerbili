@@ -90,6 +90,7 @@ $NextId=0
 $i=0
 while (++$i) {
 	if ($i -gt $CommentPageLimit) {
+		$HasUnsavedComments=$true
 		break
 	}
 	
