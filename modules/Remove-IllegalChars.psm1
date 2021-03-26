@@ -1,7 +1,22 @@
+function Join-CharsExclude {
+	param (
+		[Parameter(Mandatory,Position=0)][char[]]$CharArray,
+		[Parameter(Position=1)][char]$Exclude=[char]0
+	)
+	
+	$Sb=[System.Text.StringBuilder]::new()
+	for ($i=$CharArray.GetLowerBound(0);$i -le $CharArray.GetUpperBound(0);++$i) {
+		if ($CharArray[$i] -ne $Exclude) {
+			[void]$Sb.Append($CharArray[$i])
+		}
+	}
+	return $Sb.ToString()
+}
+
 function Remove-IllegalChars {
 	<#
 		.SYNOPSIS
-			Replaces illegal characters in a file name.
+			Removes illegal characters from a string.
 		.DESCRIPTION
 			ASCII control characters (0x00 to 0x1f) are simply removed from the name. Other
 			illegal characters (e.g. '|' and '?') are replaced with their full-width counterparts.
@@ -15,19 +30,20 @@ function Remove-IllegalChars {
 			Foo： Bar
 		.LINK
 			https://docs.microsoft.com/en-us/dotnet/api/system.io.path.getinvalidfilenamechars?view=net-5.0
-			https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file # todo: trailing dots
+			https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 	#>
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory,ValueFromPipeline,Position=0)][AllowEmptyString()][String]$Name,
+		[Parameter(Mandatory,ValueFromPipeline,Position=0)][AllowEmptyString()][String]$Name, #null is cast to string, [string]$null -eq ""
+		[ValidateNotNullOrEmpty()][string]$NullOrEmptyPlaceholder="null",
 		[switch]$KeepSpacesAroundChars,
 		[switch]$ConvertTrailingSpaces,
 		[switch]$HasExtension, #keeps the extension from being truncated
-		[ValidateRange("Positive")][int]$MaxLength=255 #extension is preserved (-HasExtension) even if MaxLength is smaller than the length of extension (plus the dot)
+		[ValidateRange("Positive")][int]$MaxLength=255 #extension is preserved (-HasExtension) even if MaxLength is less than the length of extension (plus the dot)
 	)
 	
-	if (($Name -eq "") -or ($Name -eq $Null)) {
-		return "null"
+	if ($Name -eq "") {
+		$Name=$NullOrEmptyPlaceholder
 	}
 	if ($HasExtension) {
 		$BaseName=[IO.Path]::GetFileNameWithoutExtension($Name) #this breaks when name contains slashes todo: fix it
@@ -37,7 +53,7 @@ function Remove-IllegalChars {
 	}
 	$Chars=$Name.ToCharArray()
 	$i=-1
-	while (($i=$Name.IndexOfAny([IO.Path]::GetInvalidFileNameChars(),$i+1)) -gt 0) {
+	while (($i=$Name.IndexOfAny([IO.Path]::GetInvalidFileNameChars(),$i+1)) -gt -1) {
 		if ([int]$Chars[$i] -lt 32) {
 			$Chars[$i]=$null
 			continue
@@ -54,17 +70,17 @@ function Remove-IllegalChars {
 		}
 	}
 	for ($i=-1;[int]$Chars[$i] -eq 32;--$i) {
-		$Chars[$i]=$(if($ConvertTrailingSpaces){[char]0x3000}else{$null}) #this is inconsistent with how spaces are dealt with above, but I doubt anyone would want to use this feature
+		$Chars[$i]=$(if($ConvertTrailingSpaces){[char]0x3000}else{$null}) #todo: fix inconsistency
 	}
 	for ($i=0;[int]$Chars[$i-1] -eq 46;--$i) {}
 	if ($i -eq 0) {
-		return $Chars -join ""
+		return Join-CharsExclude $Chars
 	}
 	if ((-$i % 3) -ne 0) {
 		for (;$i -lt 0;++$i) {
 			$Chars[$i]=[char]0xff0e #full width period
 		}
-		return $Chars -join ""
+		return Join-CharsExclude $Chars
 	}
 	for ($Limit=$i+(-$i / 3);$i -lt $Limit;++$i) {
 		$Chars[$i]=[char]8230 #'…'
@@ -72,5 +88,5 @@ function Remove-IllegalChars {
 	for (;$i -lt 0;++$i) {
 		$Chars[$i]=$null
 	}
-	return $Chars -join ""
+	return Join-CharsExclude $Chars
 }
